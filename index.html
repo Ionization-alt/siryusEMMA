@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Countdown</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Dancing+Script:wght@700&display=swap">
+<style>
+:root{--bg:#07030f;--ink:#f3ecd2;--pink:#ff5fb0;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{margin:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:var(--bg);-webkit-tap-highlight-color:transparent;user-select:none;font-family:"Bricolage Grotesque",system-ui,sans-serif}
+body{background:radial-gradient(120% 90% at 50% 100%,#2a0f4d 0%,var(--bg) 65%)}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#start{position:fixed;inset:0;display:grid;place-items:center;text-align:center;color:var(--ink);font-size:clamp(26px,7vw,40px);font-weight:800;letter-spacing:.04em;cursor:pointer;transition:opacity .6s}
+#start span{animation:p 2s ease-in-out infinite;text-shadow:0 0 24px rgba(255,95,176,.6)}
+#start small{display:block;margin-top:10px;font-size:15px;font-weight:500;color:#b79be6;letter-spacing:.1em}
+@keyframes p{50%{opacity:.4}}
+#start.hide{opacity:0;pointer-events:none}
+#replay{position:fixed;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom,0px));text-align:center;color:#b79be6;font-size:15px;opacity:0;transition:opacity 1s;pointer-events:none}
+#replay.show{opacity:.8}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<div id="start"><div><span>tap to start</span><small>surprise 💜</small></div></div>
+<div id="replay">tap to replay</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),startEl=document.getElementById('start'),rep=document.getElementById('replay');
+const SEQ=[{t:'3',d:1100},{t:'2',d:1100},{t:'1',d:1100},{t:'Happy',d:1200},{t:'Teachers',d:1300},{t:'Day',d:1200},{t:"Ma'am",d:1200},{t:'Emma',d:1300},{t:'HEART',d:0}];
+let W,H,DPR,step,cols=[],dots=[],idx=-1,segStart=0,state='idle',heart=[],heartStart=0;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function size(){
+  DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  step=Math.max(6,Math.round(W/62));cols=[];
+  for(let x=step/2;x<W;x+=step)cols.push({x,y:Math.random()*H,v:70+Math.random()*170,len:6+Math.random()*16});
+  if(idx>=0&&idx<SEQ.length-1)dots=makeDots(SEQ[idx].t);
+  if(state==='heart'||state==='end')heart=makeHeart();
+}
+function makeDots(text){
+  const o=document.createElement('canvas');o.width=W;o.height=H;const c=o.getContext('2d');
+  const f='800 100px "Bricolage Grotesque","Arial Black",Arial,sans-serif';
+  c.font=f;const w=c.measureText(text).width;
+  const fs=Math.min(100*(W*.84)/w,H*.3);
+  c.font=f.replace('100px',fs+'px');c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';
+  c.fillText(text,W/2,H*.46);
+  const d=c.getImageData(0,0,W,H).data,out=[];
+  for(let y=step/2;y<H;y+=step)for(let x=step/2;x<W;x+=step){
+    if(d[((y|0)*W+(x|0))*4+3]>128)out.push({x,y,s:Math.random()});
+  }
+  return out;
+}
+function makeHeart(){
+  const s=Math.min(W*.86/32,H*.46/30),cx=W/2,cy=H*.46,pts=[];
+  for(let i=0;i<1100;i++){
+    const t=Math.random()*Math.PI*2,k=1+(Math.random()-.5)*.2*Math.random()*2;
+    const hx=16*Math.pow(Math.sin(t),3),hy=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+    const a=Math.random()*Math.PI*2,r=Math.max(W,H)*(.4+Math.random()*.5);
+    pts.push({tx:cx+hx*s*k,ty:cy+hy*s*k+s*1.5,sx:cx+Math.cos(a)*r,sy:cy+Math.sin(a)*r,r:.8+Math.random()*2.1,ph:Math.random()*6.28,dl:Math.random()*.5});
+  }
+  return pts;
+}
+function rain(dt,dim){
+  for(const c of cols){
+    c.y+=c.v*dt;if(c.y-c.len*step>H){c.y=-Math.random()*H*.3;c.v=70+Math.random()*170}
+    for(let i=0;i<c.len;i++){
+      const y=c.y-i*step;if(y<-step||y>H)continue;
+      ctx.globalAlpha=(1-i/c.len)*.55*dim;
+      ctx.fillStyle=i===0?'#ffd1ec':'#ff5fb0';
+      ctx.beginPath();ctx.arc(c.x,y,step*.17,0,6.283);ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+function drawDots(p){
+  const r=step*.4;
+  ctx.shadowColor='rgba(255,236,180,.55)';ctx.shadowBlur=step*.9;
+  for(const d of dots){
+    const a=clamp((p-d.s*.3)/.22,0,1),out=clamp((p-.8-d.s*.1)/.2,0,1);
+    const sc=(1-Math.pow(1-a,3))*(1-out);if(sc<=.01)continue;
+    ctx.fillStyle='#f3ecd2';
+    ctx.beginPath();ctx.arc(d.x,d.y+(1-a)*d.s*24,r*sc,0,6.283);ctx.fill();
+  }
+  ctx.shadowBlur=0;
+}
+let font1=false;
+function drawHeart(now){
+  const e=(now-heartStart)/1000;
+  const pulse=1+.025*Math.sin(e*3.2);
+  ctx.globalCompositeOperation='lighter';
+  for(const p of heart){
+    const k=clamp((e-p.dl)/1.6,0,1),ease=1-Math.pow(1-k,3);
+    let x=p.sx+(p.tx-p.sx)*ease,y=p.sy+(p.ty-p.sy)*ease;
+    x=W/2+(x-W/2)*pulse;y=H*.46+(y-H*.46)*pulse;
+    ctx.globalAlpha=(.45+.45*Math.sin(e*2+p.ph))*Math.min(1,k*2);
+    ctx.fillStyle=p.r>1.8?'#ffc0e3':'#ff4fa3';
+    ctx.beginPath();ctx.arc(x,y,p.r,0,6.283);ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+  const ta=clamp((e-1.4)/1,0,1);
+  if(ta>0){
+    const fs=Math.min(W*.13,H*.1);
+    ctx.font='700 '+fs+'px "Dancing Script",cursive';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.globalAlpha=ta;ctx.shadowColor='#ff5fb0';ctx.shadowBlur=18;ctx.fillStyle='#fff0f8';
+    ctx.fillText('I love you',W/2,H*.46+Math.min(W*.86/32,H*.46/30)*1.5);
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+  }
+  if(e>4&&state==='heart'){state='end';rep.classList.add('show')}
+}
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  ctx.clearRect(0,0,W,H);
+  rain(dt,state==='heart'||state==='end'?.6:1);
+  if(state==='run'){
+    const sg=SEQ[idx],p=(now-segStart)/sg.d;
+    if(p>=1)advance(now);else drawDots(p);
+  }else if(state==='heart'||state==='end')drawHeart(now);
+  requestAnimationFrame(frame);
+}
+function advance(now){
+  idx++;
+  if(SEQ[idx].t==='HEART'){state='heart';heart=makeHeart();heartStart=now;return}
+  dots=makeDots(SEQ[idx].t);segStart=now;state='run';
+}
+function begin(){
+  startEl.classList.add('hide');rep.classList.remove('show');idx=-1;
+  Promise.all([document.fonts.load('800 100px "Bricolage Grotesque"'),document.fonts.load('700 40px "Dancing Script"')]).catch(()=>{}).then(()=>advance(performance.now()));
+  state='wait';
+}
+document.body.addEventListener('click',()=>{if(state==='idle'||state==='end')begin()});
+addEventListener('resize',size);size();requestAnimationFrame(frame);
+</script>
+</body></html>
